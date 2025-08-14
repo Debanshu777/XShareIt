@@ -1,4 +1,4 @@
-package com.debanshu.xshareit
+package com.debanshu.xshareit.ui
 
 interface Platform {
     val name: String

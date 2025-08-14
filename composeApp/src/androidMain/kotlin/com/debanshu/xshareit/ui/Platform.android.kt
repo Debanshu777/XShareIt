@@ -1,4 +1,4 @@
-package com.debanshu.xshareit
+package com.debanshu.xshareit.ui
 
 import android.os.Build
 

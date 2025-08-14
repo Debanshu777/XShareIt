@@ -1,4 +1,4 @@
-package com.debanshu.xshareit
+package com.debanshu.xshareit.ui
 
 class Greeting {
     private val platform = getPlatform()
