@@ -8,6 +8,7 @@ androidx-lifecycle = "2.9.1"
 coil3 = "2.5.1"
 compose-multiplatform = "1.8.2"
 kotlin = "2.2.0"
+qrKit = "3.1.2"
 room_version = "2.7.2"
 ksp = "2.1.20-1.0.31"
 sqlite = "2.5.2"
@@ -46,6 +47,7 @@ androidx-lifecycle-runtime-compose = { group = "org.jetbrains.androidx.lifecycle
 navigation-compose = { group = "org.jetbrains.androidx.navigation", name = "navigation-compose", version.ref = "navigation" }
 icons = { group = "br.com.devsrsouza.compose.icons", name = "font-awesome", version.ref = "composeIcons" }
 materialKolor = { module = "com.materialkolor:material-kolor", version.ref = "materialKolor" }
+qr-kit = { module = "network.chaintech:qr-kit", version.ref = "qrKit" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

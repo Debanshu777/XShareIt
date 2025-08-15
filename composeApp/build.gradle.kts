@@ -1,5 +1,6 @@
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -60,6 +61,7 @@ kotlin {
             implementation(libs.navigation.compose)
             implementation(libs.icons)
             implementation(libs.materialKolor)
+            implementation(libs.qr.kit)
         }
         nativeMain.dependencies {
             implementation(libs.ktor.client.darwin)
@@ -75,7 +77,11 @@ ksp {
     arg("KOIN_CONFIG_CHECK", "true")
     arg("KOIN_DEFAULT_MODULE", "false")
 }
-
+// project.tasks.withType(KotlinCompilationTask::class.java).configureEach {
+//    if (name != "kspCommonMainKotlinMetadata") {
+//        dependsOn("kspCommonMainKotlinMetadata")
+//    }
+// }
 android {
     namespace = "com.debanshu.xshareit"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
