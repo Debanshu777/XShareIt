@@ -99,7 +99,7 @@ fun SelectionScreen(
 fun SenderWaitingScreen(connectionDTO: ConnectionDTO) {
     val painter = rememberQrKitPainter(data = "${connectionDTO.ip}:${connectionDTO.port}")
     Column(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().background(color = XShareItTheme.colorScheme.surface),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -108,9 +108,9 @@ fun SenderWaitingScreen(connectionDTO: ConnectionDTO) {
             painter = painter,
             contentDescription = null,
             modifier = Modifier
-                .padding(top = 20.dp)
                 .size(200.dp)
                 .background(XShareItTheme.colorScheme.onSurface)
+                .padding(5.dp)
         )
     }
 }
@@ -143,7 +143,7 @@ fun ReceiverInitScreen() {
             maxZoomLevel = 3f,
             imagePickerHandler = { openImagePicker = it },
             onFailure = {
-                print(it)
+                print("Error Here $it")
             },
             overlayShape = overlayShape
         )
