@@ -62,3 +62,4 @@ private fun getIpFromWifiManager(): String? {
         null
     }
 }
+

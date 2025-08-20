@@ -52,6 +52,7 @@ kotlin {
             implementation(project.dependencies.platform(libs.koin.annotations.bom))
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.content.negotiation)
+            implementation(libs.ktor.client.logging)
             implementation(libs.ktor.serialization.kotlinx.json)
 
             implementation(libs.koin.core)
@@ -62,6 +63,11 @@ kotlin {
             implementation(libs.icons)
             implementation(libs.materialKolor)
             implementation(libs.qr.kit)
+
+            implementation(libs.ktor.server.core)
+            implementation(libs.ktor.server.cio)
+            implementation(libs.ktor.server.content.negotiation)
+            implementation(libs.ktor.server.cors)
         }
         nativeMain.dependencies {
             implementation(libs.ktor.client.darwin)
