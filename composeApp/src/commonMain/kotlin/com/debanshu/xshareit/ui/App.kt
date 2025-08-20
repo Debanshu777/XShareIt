@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,7 +32,8 @@ import androidx.navigation.compose.rememberNavController
 import com.debanshu.xshareit.domain.AppViewModel
 import com.debanshu.xshareit.domain.model.ConnectionDTO
 import com.debanshu.xshareit.domain.model.ConnectionType
-import com.debanshu.xshareit.domain.model.XShareItViews
+import com.debanshu.xshareit.domain.navigation.NavigatorLaunchedEffect
+import com.debanshu.xshareit.domain.navigation.Route
 import com.debanshu.xshareit.ui.theme.XShareItTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -52,75 +54,87 @@ fun App() {
     val navController = rememberNavController()
     XShareItTheme {
         val uiState by viewModel.uiState.collectAsState()
+
+        // Listen and respond to navigation events
+        NavigatorLaunchedEffect(navController = navController)
+
         Scaffold {
-            if (uiState is AppViewModel.XShareItUiState.ReceiverCompletedState) {
-                navController.navigate(XShareItViews.ReceiverCompletedView.toString())
-            }
             NavHost(
                 navController = navController,
-                startDestination = XShareItViews.SelectionView.toString(),
+                startDestination = Route.Selection,
             ) {
-                composable(route = XShareItViews.SelectionView.toString()) {
-                    SelectionScreen {
-                        if (viewModel.setConnectionType(it)) {
-                            if (it == ConnectionType.Sender) {
-                                navController.navigate(XShareItViews.SenderInitView.toString())
-                            } else {
-                                navController.navigate(XShareItViews.ReceiverInitView.toString())
-                            }
-                        }
+                composable<Route.Selection> {
+                    SelectionScreen { connectionType ->
+                        println("[App] Selection screen - User selected: $connectionType")
+                        viewModel.setConnectionType(connectionType)
                     }
                 }
 
-                composable(route = XShareItViews.SenderInitView.toString()) {
-                    SenderScaningScreen {
-                        val data = it.split(":")
+                composable<Route.SenderInit> {
+                    println("[App] Displaying SenderInit screen")
+                    SenderScaningScreen { scannedData ->
+                        println("[App] QR code scanned: $scannedData")
+                        val data = scannedData.split(":")
                         if (data.size == 2) {
-                            if (viewModel.setUiState(
-                                    AppViewModel.XShareItUiState.SenderEmittingState(
-                                        ConnectionDTO(
-                                            data[0], data[1].toInt()
-                                        )
+                            viewModel.setUiState(
+                                AppViewModel.XShareItUiState.SenderEmittingState(
+                                    ConnectionDTO(
+                                        data[0], data[1].toInt()
                                     )
                                 )
-                            ) {
-                                navController.navigate(XShareItViews.SenderEmittingView.toString())
-                            }
+                            )
                         }
                     }
                 }
-                composable(route = XShareItViews.SenderEmittingView.toString()) {
-                    val connection = (uiState as AppViewModel.XShareItUiState.SenderEmittingState)
-                        .connection
-                    SenderEmittingScreen(
-                        connection,
-                        onDataSent = {
-                            viewModel.sendData(it, connection)
-                        }
-                    )
-                }
-
-                composable(route = XShareItViews.SenderCompletedView.toString()) {
-                    val data = (uiState as AppViewModel.XShareItUiState.SenderCompletedState).data
-                    Text("Send Completed $data")
-                }
-
-
-
-                composable(route = XShareItViews.ReceiverInitView.toString()) {
-                    ReciverWaitingScreen(
-                        (uiState as AppViewModel.XShareItUiState.ReceiverWaitingState)
+                composable<Route.SenderEmitting> {
+                    if (uiState is AppViewModel.XShareItUiState.SenderEmittingState) {
+                        val connection = (uiState as AppViewModel.XShareItUiState
+                        .SenderEmittingState)
                             .connection
-                    )
+                        SenderEmittingScreen(
+                            connection,
+                            onDataSent = { data ->
+                                viewModel.sendData(data, connection)
+                            }
+                        )
+                    }
                 }
-                composable(route = XShareItViews.ReceiverConsumingView.toString()) {
 
+                composable<Route.SenderCompleted> {
+                    if (uiState is AppViewModel.XShareItUiState.SenderCompletedState) {
+                        Column(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text("Send Completed ${(uiState as AppViewModel.XShareItUiState.SenderCompletedState).data}")
+                        }
+                    }
                 }
-                composable(route = XShareItViews.ReceiverCompletedView.toString()) {
-                    Text("Receiver Completed ${(uiState as AppViewModel.XShareItUiState.ReceiverCompletedState).data}")
+
+
+
+                composable<Route.ReceiverInit> {
+                    println("[App] Displaying ReceiverInit screen")
+                    if (uiState is AppViewModel.XShareItUiState.ReceiverWaitingState) {
+                        ReciverWaitingScreen((uiState as AppViewModel.XShareItUiState.ReceiverWaitingState).connection)
+                    }
                 }
-                composable(route = XShareItViews.ErrorView.toString()) {
-                    Text("Error $it")
+
+                composable<Route.ReceiverConsuming> {
+                    // TODO: Implement receiver consuming screen
+                }
+
+                composable<Route.ReceiverCompleted> {
+                    if (uiState is AppViewModel.XShareItUiState.ReceiverCompletedState) {
+                        Text("Receiver Completed ${(uiState as AppViewModel.XShareItUiState.ReceiverCompletedState).data}")
+                    }
+                }
+
+                composable<Route.Error> {
+                    if (uiState is AppViewModel.XShareItUiState.ErrorState) {
+                        Text("Error: ${(uiState as AppViewModel.XShareItUiState.ErrorState).error}")
+                    }
                 }
             }
         }
@@ -174,16 +188,30 @@ fun SenderEmittingScreen(
     connectionDTO: ConnectionDTO,
     onDataSent: (String) -> Unit,
 ) {
+    var textToSend by remember { mutableStateOf("") }
+    
     Column(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("Sending Data to :${connectionDTO.ip}:${connectionDTO.port}")
+        Text("Sending Data to: ${connectionDTO.ip}:${connectionDTO.port}")
+        
+        OutlinedTextField(
+            value = textToSend,
+            onValueChange = { textToSend = it },
+            label = { Text("Enter data to send") },
+            placeholder = { Text("Type your message here...") },
+            modifier = Modifier.padding(vertical = 16.dp)
+        )
+        
         Button(
             onClick = {
-                onDataSent("Helloo World")
+                if (textToSend.isNotBlank()) {
+                    onDataSent(textToSend)
+                }
             },
+            enabled = textToSend.isNotBlank()
         ) {
             Text("Send Data")
         }
