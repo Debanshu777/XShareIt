@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.debanshu.xshareit.data.Result
 import com.debanshu.xshareit.data.ShareManager
-import com.debanshu.xshareit.data.getDeviceIpAddress
+
 import com.debanshu.xshareit.domain.model.ConnectionDTO
 import com.debanshu.xshareit.domain.model.ConnectionType
 import com.debanshu.xshareit.domain.model.ReceiverDTO
@@ -22,10 +22,11 @@ import org.koin.core.component.KoinComponent
 
 @KoinViewModel
 class AppViewModel(
-    private var shareManager: ShareManager
+    private val shareManager: ShareManager
 ) : ViewModel(), KoinComponent {
     private val _connectionType = MutableStateFlow<ConnectionType?>(null)
     private val _uiState: MutableStateFlow<XShareItUiState?> = MutableStateFlow(null)
+    private val _isLoading = MutableStateFlow(false)
     private val port = 8080
 
     private val tag = "AppViewModel"
@@ -36,10 +37,8 @@ class AppViewModel(
                 println("[$tag] Received data: $data")
                 data?.let {
                     println("[$tag] Processing received data: ${it.data}")
-                    _uiState.tryEmit(XShareItUiState.ReceiverCompletedState(it.data))
-                    // Navigate to completed screen when data is received
+                    _uiState.value = XShareItUiState.ReceiverCompletedState(it.data)
                     viewModelScope.launch {
-                        kotlinx.coroutines.delay(50)
                         NavigationManager.navigateToAsync(Route.ReceiverCompleted)
                     }
                 }
@@ -49,30 +48,17 @@ class AppViewModel(
 
     val uiState = combine(
         _uiState,
-        _connectionType
-    ) { state, connectionState ->
-        state?.let {
-            it
-        } ?: when (connectionState) {
-            ConnectionType.Receiver -> {
-                val connection = ConnectionDTO(
-                    ip = getDeviceIpAddress() ?: "Unknown",
-                    port = port
-                )
-                val result = shareManager.startReceiver(
-                    ReceiverDTO(connection)
-                )
-                when (result) {
-                    is Result.Error -> XShareItUiState.ErrorState(error = result.error.name)
-                    is Result.Success -> XShareItUiState.ReceiverWaitingState(
-                        connection = connection
-                    )
-                }
+        _connectionType,
+        _isLoading
+    ) { state, connectionState, isLoading ->
+        if (isLoading) {
+            XShareItUiState.LoadingState
+        } else {
+            state ?: when (connectionState) {
+                ConnectionType.Receiver -> initializeReceiver()
+                ConnectionType.Sender -> XShareItUiState.SenderInitState
+                else -> XShareItUiState.SelectionState
             }
-
-            ConnectionType.Sender -> XShareItUiState.SenderInitState
-
-            else -> XShareItUiState.SelectionState
         }
     }.distinctUntilChanged().stateIn(
         scope = viewModelScope,
@@ -80,48 +66,73 @@ class AppViewModel(
         initialValue = XShareItUiState.SelectionState,
     )
 
+    private fun initializeReceiver(): XShareItUiState {
+        val deviceIp = try {
+            com.debanshu.xshareit.data.getDeviceIpAddress() ?: "Unknown"
+        } catch (e: Exception) {
+            "Unknown"
+        }
+        val connection = ConnectionDTO(
+            ip = deviceIp,
+            port = port
+        )
+        val result = shareManager.startReceiver(ReceiverDTO(connection))
+        return when (result) {
+            is Result.Error -> XShareItUiState.ErrorState(error = result.error.name)
+            is Result.Success -> XShareItUiState.ReceiverWaitingState(connection = connection)
+        }
+    }
+
     fun setConnectionType(connectionType: ConnectionType) {
         println("[$tag] Setting connection type: $connectionType")
-        _connectionType.tryEmit(connectionType)
+        _isLoading.value = true
+        _connectionType.value = connectionType
         
-        // Navigate based on connection type with slight delay to ensure state is updated
         viewModelScope.launch {
-            kotlinx.coroutines.delay(50) // Small delay to ensure state is processed
-            when (connectionType) {
-                ConnectionType.Sender -> NavigationManager.navigateToAsync(Route.SenderInit)
-                ConnectionType.Receiver -> NavigationManager.navigateToAsync(Route.ReceiverInit)
+            try {
+                when (connectionType) {
+                    ConnectionType.Sender -> NavigationManager.navigateToAsync(Route.SenderInit)
+                    ConnectionType.Receiver -> NavigationManager.navigateToAsync(Route.ReceiverInit)
+                }
+            } finally {
+                _isLoading.value = false
             }
         }
     }
 
-    fun sendData(data: String,connectionDTO: ConnectionDTO) {
+    fun sendData(data: String, connectionDTO: ConnectionDTO) {
+        if (data.isBlank()) {
+            println("[$tag] Cannot send empty data")
+            return
+        }
+        
         println("[$tag] Attempting to send data: $data")
+        _isLoading.value = true
+        
         viewModelScope.launch {
-            shareManager.sendData(
-                SenderDTO(
-                    connectionDTO = ConnectionDTO(
-                        ip = connectionDTO.ip,
-                        port = connectionDTO.port
-                    ),
-                    data = data
+            try {
+                val result = shareManager.sendData(
+                    SenderDTO(
+                        connectionDTO = connectionDTO,
+                        data = data
+                    )
                 )
-            ).let { result ->
+                
                 when (result) {
                     is Result.Success -> {
-                        println("[$tag] Data sent successfully, updating UI to completed state")
-                        _uiState.tryEmit(XShareItUiState.SenderCompletedState(data))
-                        kotlinx.coroutines.delay(50)
+                        println("[$tag] Data sent successfully")
+                        _uiState.value = XShareItUiState.SenderCompletedState(data)
                         NavigationManager.navigateToAsync(Route.SenderCompleted)
                     }
-
                     is Result.Error -> {
                         val errorMessage = "Failed to send data: ${result.error}"
-                        println("[$tag] Failed to send data: $errorMessage")
-                        _uiState.tryEmit(XShareItUiState.ErrorState(errorMessage))
-                        kotlinx.coroutines.delay(50)
+                        println("[$tag] $errorMessage")
+                        _uiState.value = XShareItUiState.ErrorState(errorMessage)
                         NavigationManager.navigateToAsync(Route.Error)
                     }
                 }
+            } finally {
+                _isLoading.value = false
             }
         }
     }
@@ -133,16 +144,14 @@ class AppViewModel(
     }
 
     fun setUiState(uiState: XShareItUiState) {
-        println("[$tag] Manually setting UI state to: $uiState")
-        _uiState.tryEmit(uiState)
+        println("[$tag] Setting UI state to: $uiState")
+        _uiState.value = uiState
         
-        // Navigate based on UI state if needed
         viewModelScope.launch {
-            kotlinx.coroutines.delay(50) // Small delay to ensure state is processed
             when (uiState) {
                 is XShareItUiState.SenderEmittingState -> NavigationManager.navigateToAsync(Route.SenderEmitting)
                 is XShareItUiState.ErrorState -> NavigationManager.navigateToAsync(Route.Error)
-                else -> { /* Other states don't require immediate navigation */ }
+                else -> { /* Other states handled by navigation flow */ }
             }
         }
     }
@@ -155,7 +164,8 @@ class AppViewModel(
     }
 
     sealed class XShareItUiState {
-        object SelectionState : XShareItUiState()
+        data object SelectionState : XShareItUiState()
+        data object LoadingState : XShareItUiState()
 
         data class ReceiverWaitingState(
             val connection: ConnectionDTO
@@ -165,9 +175,12 @@ class AppViewModel(
             val senderDTO: SenderDTO
         ) : XShareItUiState()
 
-        data class ReceiverCompletedState(val data:String) : XShareItUiState()
+        data class ReceiverCompletedState(
+            val data: String
+        ) : XShareItUiState()
 
         data object SenderInitState : XShareItUiState()
+        
         data class SenderEmittingState(
             val connection: ConnectionDTO
         ) : XShareItUiState()
@@ -176,6 +189,8 @@ class AppViewModel(
             val data: String
         ) : XShareItUiState()
 
-        data class ErrorState(val error: String) : XShareItUiState()
+        data class ErrorState(
+            val error: String
+        ) : XShareItUiState()
     }
 }

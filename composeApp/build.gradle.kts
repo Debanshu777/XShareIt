@@ -78,16 +78,38 @@ kotlin {
     }
 }
 
+dependencies {
+    debugImplementation(compose.uiTooling)
+    listOf(
+        "kspCommonMainMetadata",
+        "kspAndroid",
+        "kspIosSimulatorArm64",
+        "kspIosX64",
+        "kspIosArm64",
+    ).forEach {
+        add(it, libs.koin.ksp.compiler)
+    }
+}
+
 ksp {
     arg("KOIN_USE_COMPOSE_VIEWMODEL", "true")
     arg("KOIN_CONFIG_CHECK", "true")
+    arg("KOIN_LOG_TIMES", "true")
     arg("KOIN_DEFAULT_MODULE", "false")
 }
-// project.tasks.withType(KotlinCompilationTask::class.java).configureEach {
-//    if (name != "kspCommonMainKotlinMetadata") {
-//        dependsOn("kspCommonMainKotlinMetadata")
-//    }
-// }
+
+// Fix KSP task dependencies
+project.tasks.withType(KotlinCompilationTask::class.java).configureEach {
+    if (name != "kspCommonMainKotlinMetadata") {
+        dependsOn("kspCommonMainKotlinMetadata")
+    }
+}
+
+// Explicitly declare KSP task dependencies
+tasks.matching { it.name.startsWith("ksp") && it.name != "kspCommonMainKotlinMetadata" }.configureEach {
+    dependsOn("kspCommonMainKotlinMetadata")
+}
+
 android {
     namespace = "com.debanshu.xshareit"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
@@ -114,17 +136,3 @@ android {
         targetCompatibility = JavaVersion.VERSION_21
     }
 }
-
-dependencies {
-    debugImplementation(compose.uiTooling)
-    listOf(
-        "kspAndroid",
-        "kspIosSimulatorArm64",
-        "kspIosX64",
-        "kspIosArm64",
-    ).forEach {
-        add(it, libs.koin.ksp.compiler)
-    }
-    add("kspCommonMainMetadata", libs.koin.ksp.compiler)
-}
-
