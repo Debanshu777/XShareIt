@@ -127,7 +127,13 @@ fun App() {
 
                 composable<Route.ReceiverCompleted> {
                     if (uiState is AppViewModel.XShareItUiState.ReceiverCompletedState) {
-                        Text("Receiver Completed ${(uiState as AppViewModel.XShareItUiState.ReceiverCompletedState).data}")
+                        Column(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text("Receiver Completed ${(uiState as AppViewModel.XShareItUiState.ReceiverCompletedState).data}")
+                        }
                     }
                 }
 

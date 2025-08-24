@@ -9,7 +9,11 @@ import com.debanshu.xshareit.domain.model.ReceiverDTO
 import com.debanshu.xshareit.domain.model.SenderDTO
 import io.ktor.client.HttpClient
 import io.ktor.server.engine.EmbeddedServer
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import org.koin.core.annotation.Factory
 import org.koin.core.annotation.Property
 import org.koin.core.annotation.Single
@@ -20,7 +24,8 @@ class ShareManager(
     private val serverFactory: (String, Int) -> EmbeddedServer<*, *>
 ) {
     private var currentServer: Server? = null
-    val receivedData: MutableStateFlow<DataTransferRequest?>? = currentServer?.receivedData
+    val receivedData: MutableStateFlow<DataTransferRequest?> = MutableStateFlow(null)
+    private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val tag = "ShareManager"
 
     fun startReceiver(receiverDTO: ReceiverDTO): Result<Unit, DataError.Network> {
@@ -31,6 +36,17 @@ class ShareManager(
                 serverFactory = serverFactory
             )
             println("[$tag] Server instance created successfully")
+            
+            // Forward data from server's receivedData to ShareManager's receivedData
+            currentServer?.let { server ->
+                coroutineScope.launch {
+                    server.receivedData.collect { data ->
+                        println("[$tag] Forwarding received data to ShareManager flow: $data")
+                        receivedData.value = data
+                    }
+                }
+            }
+            
             currentServer?.invoke()
             println("[$tag] Server started and listening for connections")
             Result.Success(Unit)

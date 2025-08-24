@@ -32,10 +32,11 @@ class AppViewModel(
 
     init {
         viewModelScope.launch {
-            shareManager.receivedData?.collect { data ->
+            shareManager.receivedData.collect { data ->
                 println("[$tag] Received data: $data")
                 data?.let {
-                    _uiState.tryEmit(XShareItUiState.ReceiverCompletedState(it.toString()))
+                    println("[$tag] Processing received data: ${it.data}")
+                    _uiState.tryEmit(XShareItUiState.ReceiverCompletedState(it.data))
                     // Navigate to completed screen when data is received
                     viewModelScope.launch {
                         kotlinx.coroutines.delay(50)
